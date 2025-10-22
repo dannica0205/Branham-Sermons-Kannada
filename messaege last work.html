@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Sermon Player with Admin and Auto-Scroll</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<style>
+  :root {
+    --bg-color: #f5f5f5;
+    --container-bg: #fff;
+    --text-box-bg: #fafafa;
+    --text-color: #333;
+    --border-color: #eee;
+    --shadow-color: #ccc;
+    --primary-color: #1976d2;
+    --text-muted: #555;
+  }
+
+  body.dark-theme {
+    --bg-color: #212121;
+    --container-bg: #333;
+    --text-box-bg: #2a2a2a;
+    --text-color: #e0e0e0;
+    --border-color: #444;
+    --shadow-color: #111;
+    --primary-color: #42a5f5;
+    --text-muted: #aaa;
+  }
+
+  body { margin:0; font-family:Arial,sans-serif; background: var(--bg-color); color: var(--text-color); transition: background-color 0.3s, color 0.3s; }
+  .container { max-width:700px; margin:20px auto; background:var(--container-bg); border-radius:8px; box-shadow:0 2px 10px var(--shadow-color); padding:24px; display:flex; flex-direction:column; height:90vh; }
+  .sermon-text-box { 
+    flex:1; 
+    overflow-y:auto; 
+    font-size:1.1em; 
+    line-height:1.7; 
+    background:var(--text-box-bg); 
+    padding:16px; 
+    border-radius:5px; 
+    border:1px solid var(--border-color); 
+    scroll-behavior: smooth; 
+    text-align: center;
+  }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .admin-btn { background:var(--primary-color); color:white; padding:6px 14px; border:none; border-radius:4px; cursor:pointer; }
+  #themeToggleBtn { background:none; border:none; font-size:1.5em; cursor:pointer; padding: 0 10px; }
+
+  /* CORRECTED Admin Panel and Login Styles */
+  .login { text-align:center; margin:40px; }
+  .adminPanel { 
+    background:#e3e3e3; 
+    color: #333; 
+    padding:20px; 
+    margin:15px 0; 
+    border-radius:7px; 
+    max-height: 70vh; 
+    overflow-y: auto; 
+  }
+  
+  .hidden { display:none !important; } /* Use !important to override any other display properties */
+  textarea, input, select { width:100%; padding:8px; margin-top:5px; box-sizing:border-box; border: 1px solid #ccc; border-radius: 4px; }
+  .checkpoint-row { display:flex; gap:6px; margin-bottom:8px; }
+  .checkpoint-row input { flex:1; }
+  .checkpoint-row button { width:28px; background:#ff5959; }
+  button { margin-top:7px; padding:8px 18px; cursor:pointer; background:var(--primary-color); color:white; border:none; border-radius:4px; }
+  label { font-weight:bold; display:block; margin-top:13px; }
+  #sermonSelect { max-width: 100%; font-size: 1em; }
+  #sermonSearch { margin-bottom: 10px; }
+
+  /* --- MODERN PLAYER CONTROLS --- */
+  #playerControlsContainer { 
+    margin-top:20px; 
+    padding: 15px 20px;
+    background-color: var(--text-box-bg);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+  }
+  .custom-controls { display:flex; align-items:center; gap:15px; margin-bottom: 10px; }
+  .time-display { font-size:0.9em; color:var(--text-muted); white-space:nowrap; font-weight: bold; }
+  .audio-controls { display:flex; align-items:center; justify-content: center; gap:20px; flex-wrap: wrap; }
+  .audio-controls button {
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+    padding: 0;
+    margin: 0;
+  }
+  .audio-controls button:hover { background-color: var(--border-color); }
+  .audio-controls button svg { fill: var(--primary-color); }
+  #playPauseBtn { 
+    width: 64px; 
+    height: 64px; 
+    background-color: var(--primary-color);
+  }
+  #playPauseBtn:hover { background-color: #1565c0; }
+  body.dark-theme #playPauseBtn:hover { background-color: #64b5f6; }
+  #playPauseBtn svg { fill: white; width: 28px; height: 28px; }
+  .play-icon { margin-left: 4px; }
+
+  .audio-controls label { margin:0; font-weight: normal; color: var(--text-muted); }
+  
+  input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
+  input[type="range"].seek-bar { width: 100%; }
+  input[type="range"].volume-bar { width: 120px; }
+  input[type="range"]::-webkit-slider-runnable-track { background: var(--border-color); height: 6px; border-radius: 3px; }
+  input[type="range"]::-moz-range-track { background: var(--border-color); height: 6px; border-radius: 3px; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; margin-top: -5px; background-color: var(--primary-color); height: 16px; width: 16px; border-radius: 50%; }
+  input[type="range"]::-moz-range-thumb { border: none; background-color: var(--primary-color); height: 16px; width: 16px; border-radius: 50%; }
+  /* END MODERN PLAYER CONTROLS */
+
+  #sermonTextBoxPreview { text-align: center; } 
+  .admin-fieldset { border: 1px solid #aaa; border-radius: 5px; padding: 10px; margin-top: 15px; }
+  .admin-fieldset legend { font-weight: bold; padding: 0 5px; }
+  .speed-control-container { display: flex; align-items: center; gap: 10px; margin-top: 5px; }
+  .speed-control-container input[type="range"] { margin-top: 0; flex: 1; }
+  .speed-btn { width: 35px; height: 35px; padding: 0; margin-top: 0; font-size: 1.5em; line-height: 1; text-align: center; flex-shrink: 0; }
+  #speedValueDisplay { font-weight: bold; font-size: 1.1em; color: #333; min-width: 30px; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="top-bar">
+      <div style="flex:1;">
+        <label for="sermonSearch">Search Sermons:</label>
+        <input type="text" id="sermonSearch" placeholder="Type to search...">
+        <label for="sermonSelect">Select Sermon:</label>
+        <select id="sermonSelect"></select>
+      </div>
+      <button id="themeToggleBtn">🌙</button>
+      <button id="adminBtn" class="admin-btn">Admin</button>
+    </div>
+
+    <div id="sermonTextBox" class="sermon-text-box" tabindex="0"></div>
+    <audio id="audioPlayer" preload="metadata"></audio>
+
+    <div id="playerControlsContainer">
+      <div class="custom-controls">
+        <span class="time-display" id="currentTimeDisplay">0:00</span>
+        <input type="range" class="seek-bar" id="seekBar" value="0" min="0" step="1" />
+        <span class="time-display" id="totalTimeDisplay">0:00</span>
+      </div>
+      <div class="audio-controls" id="audioControls">
+        <button id="backwardBtn" title="Backward 10 seconds">
+            <svg viewBox="0 0 24 24" width="28" height="28"><path d="M12.5 4C7.8 4 3.57 6.86 2 11.22V9H0v6h6v-2H2.12c1.44-3.32 4.74-5.5 8.38-5.5s6.94 2.18 8.38 5.5H16v2h6V9h-2v2.22C20.43 6.86 16.2 4 12.5 4zM11 14h2v-4h-2v4z"/></svg>
+        </button>
+        <button id="playPauseBtn" title="Play/Pause">
+            <svg class="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+            <svg class="pause-icon hidden" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg>
+        </button>
+        <button id="forwardBtn" title="Forward 10 seconds">
+            <svg viewBox="0 0 24 24" width="28" height="28" style="transform: scaleX(-1);"><path d="M12.5 4C7.8 4 3.57 6.86 2 11.22V9H0v6h6v-2H2.12c1.44-3.32 4.74-5.5 8.38-5.5s6.94 2.18 8.38 5.5H16v2h6V9h-2v2.22C20.43 6.86 16.2 4 12.5 4zM11 14h2v-4h-2v4z"/></svg>
+        </button>
+        <label for="volumeRange">Volume:</label>
+        <input type="range" id="volumeRange" class="volume-bar" min="0" max="1" step="0.05" value="1" />
+      </div>
+    </div>
+
+    <div id="loginPanel" class="login hidden">
+      <h3>Administrator Login</h3>
+      <input type="password" id="adminPwd" placeholder="Enter Password" />
+      <button onclick="adminLogin()">Login</button>
+      <div id="loginMsg" style="color:red;margin-top:10px;"></div>
+    </div>
+
+    <div id="adminPanel" class="adminPanel hidden">
+      <h3>Admin Settings</h3>
+      <fieldset class="admin-fieldset">
+          <legend>Page Analytics</legend>
+          <p style="margin: 0; padding: 5px 0;">Total Page Visits: <strong id="visitorCount">0</strong></p>
+          <button onclick="resetVisitorCounter()" style="background:#ff5959; font-size:0.8em; padding: 4px 8px;">Reset Counter</button>
+      </fieldset>
+      <button id="addNewSermonBtn" onclick="prepareNewSermon()" style="background:#28a745; margin-top: 20px; margin-bottom: 15px; width: 100%;">Create New Sermon</button>
+      <fieldset class="admin-fieldset" style="background: #d0e3f5;">
+        <legend>Or, Edit an Existing Sermon</legend>
+        <label for="adminSermonSelect">Select a sermon to load its data:</label>
+        <select id="adminSermonSelect"></select>
+      </fieldset>
+      <label>Title:</label>
+      <input type="text" id="adminTitle" placeholder="Sermon Title">
+      <label>Sermon Text:</label>
+      <textarea id="sermonInput" rows="8"></textarea>
+      <fieldset class="admin-fieldset">
+        <legend>Audio Sources</legend>
+        <label>Primary URLs (e.g., GitHub):</label>
+        <textarea id="primaryAudioPartsInput" rows="3"></textarea>
+        <label>Fallback URLs (e.g., Internet Archive):</label>
+        <textarea id="fallbackAudioPartsInput" rows="3"></textarea>
+        <label>Total Audio Time:</label>
+        <input type="text" id="totalAudioTime" placeholder="hh:mm:ss" />
+      </fieldset>
+      <fieldset class="admin-fieldset">
+          <legend>Scrolling Options</legend>
+          <label for="scrollModeSelect">Scroll Mode:</label>
+          <select id="scrollModeSelect">
+              <option value="paragraph">Paragraph Sync</option>
+              <option value="line">Line by Line</option>
+              <option value="continuous">Continuous</option>
+              <option value="disabled">Disabled</option>
+          </select>
+          <label for="scrollSpeedRange">Scroll Speed:</label>
+          <div class="speed-control-container">
+            <button id="speedDownBtn" class="speed-btn">-</button>
+            <input type="range" id="scrollSpeedRange" min="-20" max="2" value="0">
+            <span id="speedValueDisplay">0</span>
+            <button id="speedUpBtn" class="speed-btn">+</button>
+          </div>
+      </fieldset>
+      <fieldset class="admin-fieldset">
+        <legend>Checkpoints</legend>
+        <div id="checkpointRows"></div>
+        <button onclick="addCheckpoint()">Add Manual Checkpoint</button>
+      </fieldset>
+      <button id="refreshPreviewBtn" onclick="refreshAdminPreview()" style="background:#555; width: 100%; margin-bottom: 15px;">Refresh Preview & Apply Settings</button>
+      <div id="adminPreview" class="hidden">
+        <h4>Live Preview & Checkpoint Helper</h4>
+        <div id="sermonTextBoxPreview" style="height: 200px; background: #fff; border: 1px solid #ccc; color: #333; overflow-y:auto; font-size:1.1em; line-height:1.7; padding:16px; border-radius:5px; scroll-behavior: smooth;"></div>
+        <audio id="audioPlayerPreview" preload="metadata"></audio>
+        <div class="custom-controls">
+          <span class="time-display" id="currentTimeDisplayPreview">0:00</span>
+          <input type="range" class="seek-bar" id="seekBarPreview" value="0" min="0" step="1" />
+          <span class="time-display" id="totalTimeDisplayPreview">0:00</span>
+        </div>
+        <div class="audio-controls">
+          <button id="playPauseBtnPreview">▶️ Play</button>
+          <button onclick="addCheckpointAtCurrentTime()">Add Checkpoint at Current Time</button>
+        </div>
+      </div>
+      <hr>
+      <button id="deleteBtn" style="background:#d32f2f;">Delete Selected Sermon</button>
+      <button onclick="saveSettings()">Save & Apply</button>
+      <button onclick="closeAdmin()">Close</button>
+    </div>
+  </div>
+
+<script>
+  const ADMIN_PASSWORD = '90209020';
+
+  let allSermons = {};
+  let sortedSermonKeys = [];
+  let currentKey = '';
+  let autoScrollInt = null;
+  let adminPreviewScrollInt = null;
+  let paragraphElements = [];
+  let paragraphElementsPreview = [];
+  let scrollPlan = [];
+  let manualScrollTimeout = null;
+  let isScrollingProgrammatically = false;
+  let audioParts = []; 
+  let partDurations = [];
+  let partStartTimes = [];
+  let currentPartIndex = 0;
+  let totalAudioDuration = 0;
+  let globalCurrentTime = 0;
+  let isSeeking = false;
+  let wasPlayingBeforeSeek = false;
+  let linesPerParagraph = [];
+  
+  const sermonBox = document.getElementById('sermonTextBox');
+  const audioPlayer = document.getElementById('audioPlayer');
+  const adminBtn = document.getElementById('adminBtn');
+  const loginPanel = document.getElementById('loginPanel');
+  const adminPanel = document.getElementById('adminPanel');
+  const sermonSelect = document.getElementById('sermonSelect');
+  const scrollModeSelect = document.getElementById('scrollModeSelect');
+  const deleteBtn = document.getElementById('deleteBtn');
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  const seekBar = document.getElementById('seekBar');
+  const currentTimeDisplay = document.getElementById('currentTimeDisplay');
+  const totalTimeDisplay = document.getElementById('totalTimeDisplay');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const backwardBtn = document.getElementById('backwardBtn');
+  const forwardBtn = document.getElementById('forwardBtn');
+  const volumeRange = document.getElementById('volumeRange');
+  const adminPreviewPanel = document.getElementById('adminPreview');
+  const audioPlayerPreview = document.getElementById('audioPlayerPreview');
+  const sermonBoxPreview = document.getElementById('sermonTextBoxPreview');
+  const seekBarPreview = document.getElementById('seekBarPreview');
+  const currentTimeDisplayPreview = document.getElementById('currentTimeDisplayPreview');
+  const totalTimeDisplayPreview = document.getElementById('totalTimeDisplayPreview');
+  const playPauseBtnPreview = document.getElementById('playPauseBtnPreview');
+  const sermonInput = document.getElementById('sermonInput');
+  const scrollSpeedRange = document.getElementById('scrollSpeedRange');
+  const speedValueDisplay = document.getElementById('speedValueDisplay');
+  const speedDownBtn = document.getElementById('speedDownBtn');
+  const speedUpBtn = document.getElementById('speedUpBtn');
+  const playIcon = document.querySelector('.play-icon');
+  const pauseIcon = document.querySelector('.pause-icon');
+  const visitorCountEl = document.getElementById('visitorCount');
+
+  // --- VISITOR COUNTER LOGIC ---
+  function incrementAndShowVisitorCount() {
+    let visits = parseInt(localStorage.getItem('pageVisits') || '0');
+    visits++;
+    localStorage.setItem('pageVisits', visits);
+    if(visitorCountEl) {
+        visitorCountEl.textContent = visits.toLocaleString();
+    }
+  }
+  function resetVisitorCounter() {
+    if (window.confirm('Are you sure you want to reset the visitor counter?')) {
+        localStorage.setItem('pageVisits', '0');
+        if(visitorCountEl) {
+            visitorCountEl.textContent = '0';
+        }
+    }
+  }
+  
+  // --- SERMON FILTERING AND SORTING LOGIC ---
+  function updateSermonDropdown() {
+      const searchTerm = document.getElementById('sermonSearch').value.toLowerCase();
+      sermonSelect.innerHTML = '';
+      let matchFound = false;
+      sortedSermonKeys.forEach(key => {
+          const sermon = allSermons[key];
+          if (sermon && sermon.title.toLowerCase().includes(searchTerm)) {
+              const opt = document.createElement('option');
+              opt.value = key;
+              opt.text = sermon.title || 'Untitled';
+              sermonSelect.appendChild(opt);
+              matchFound = true;
+          }
+      });
+      if (!matchFound) {
+          sermonSelect.innerHTML = '<option value="">No matches found</option>';
+      }
+  }
+  function extractLeadingNumber(title) {
+    if (!title) return Infinity;
+    const match = title.match(/^(\d+)/);
+    return match ? parseInt(match[1], 10) : Infinity;
+  }
+
+  // --- HELPER FUNCTIONS ---
+  function saveAllSermons() { localStorage.setItem('allSermons', JSON.stringify(allSermons)); }
+  function loadAllSermons() { allSermons = JSON.parse(localStorage.getItem('allSermons') || '{}'); }
+  function hmsToSeconds(str) { if (!str) return 0; const parts = str.split(':').map(Number); let seconds = 0; if (parts.length === 3) { seconds = (parts[0] * 3600) + (parts[1] * 60) + parts[2]; } else if (parts.length === 2) { seconds = (parts[0] * 60) + parts[1]; } else if (parts.length === 1) { seconds = parts[0]; } return isNaN(seconds) ? 0 : Math.round(seconds); }
+  function secondsToHms(secs, forInput = false) { if (isNaN(secs) || secs < 0) return ''; secs = Math.floor(secs); const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60; const pad = (n) => n.toString().padStart(2, '0'); if (forInput || h > 0) return `${pad(h)}:${pad(m)}:${pad(s)}`; return `${m}:${pad(s)}`; }
+  function formatTime(secs) { return secondsToHms(secs, false); }
+  function convertToStreamableUrl(url) { if (!url) return ''; if (url.includes('github.com') && url.includes('/blob/')) { return url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/'); } return url; }
+  
+  // --- THEME MANAGEMENT ---
+  function applyTheme(theme) { if (theme === 'dark') { document.body.classList.add('dark-theme'); themeToggleBtn.textContent = '☀️'; } else { document.body.classList.remove('dark-theme'); themeToggleBtn.textContent = '🌙'; } }
+  themeToggleBtn.onclick = () => { const newTheme = document.body.classList.contains('dark-theme') ? 'light' : 'dark'; localStorage.setItem('sermonPlayerTheme', newTheme); applyTheme(newTheme); };
+  
+  // --- SCROLLING & SYNC LOGIC ---
+  function getScrollTopForPara(paraNum, textBox, paraElementsArray) { const targetPara = paraElementsArray[paraNum - 1]; if (!targetPara) return 0; return targetPara.offsetTop - textBox.offsetTop; }
+  function calculateLinesPerParagraph(textBox, paraElementsArray) { linesPerParagraph = []; for (let i = 0; i < paraElementsArray.length; i++) { const para = paraElementsArray[i]; const lineHeight = parseFloat(getComputedStyle(para).lineHeight); const paraHeight = para.offsetHeight; const lines = Math.ceil(paraHeight / lineHeight); linesPerParagraph.push(lines); } }
+  function getScrollTopForLine(paraIndex, lineIndex, textBox, paraElementsArray) { if (paraIndex >= paraElementsArray.length) return textBox.scrollHeight; const para = paraElementsArray[paraIndex]; const lineHeight = parseFloat(getComputedStyle(para).lineHeight); const paraTop = para.offsetTop - textBox.offsetTop; return paraTop + (lineIndex * lineHeight); }
+  function getCurrentLineForTime(playerTime, totalDuration, totalLines) { const progress = totalDuration > 0 ? playerTime / totalDuration : 0; return Math.floor(progress * totalLines); }
+  function getTotalLines(paraElementsArray) { let total = 0; for (let i = 0; i < paraElementsArray.length; i++) { total += linesPerParagraph[i] || 0; } return total; }
+  function snapScrollPosition(textBox, seekBarEl, sermonData, paraElementsArray) { const playerTime = parseInt(seekBarEl.value, 10); const mode = sermonData.scrollMode || 'paragraph'; isScrollingProgrammatically = true; if (mode === 'paragraph') { let targetPara = 1; for (const segment of scrollPlan) { if (playerTime >= segment.fromT && playerTime < segment.toT) { const progress = (playerTime - segment.fromT) / (segment.toT - segment.fromT); targetPara = Math.floor(segment.fromP + progress * (segment.toP - segment.fromP)); break; } if (playerTime >= segment.toT) targetPara = segment.toP - 1; } targetPara = Math.max(1, Math.min(paraElementsArray.length, targetPara)); textBox.scrollTop = getScrollTopForPara(targetPara, textBox, paraElementsArray); } else if (mode === 'line') { calculateLinesPerParagraph(textBox, paraElementsArray); const totalLines = getTotalLines(paraElementsArray); const currentLine = getCurrentLineForTime(playerTime, totalAudioDuration, totalLines); let lineCount = 0; for (let i = 0; i < linesPerParagraph.length; i++) { if (currentLine < lineCount + linesPerParagraph[i]) { const lineInPara = currentLine - lineCount; textBox.scrollTop = getScrollTopForLine(i, lineInPara, textBox, paraElementsArray); break; } lineCount += linesPerParagraph[i]; } } else if (mode === 'continuous') { const progress = totalAudioDuration > 0 ? playerTime / totalAudioDuration : 0; const maxScrollTop = textBox.scrollHeight - textBox.clientHeight; textBox.scrollTop = maxScrollTop > 0 ? maxScrollTop * progress : 0; } requestAnimationFrame(() => { isScrollingProgrammatically = false; }); }
+  function syncAudioToScroll() { if (isScrollingProgrammatically || audioPlayer.paused === false || isSeeking) return; const sermon = allSermons[currentKey]; if (!sermon || sermon.scrollMode !== 'paragraph' || paragraphElements.length === 0 || scrollPlan.length === 0) return; let minDistance = Infinity, topParaIndex = 0; paragraphElements.forEach((p, index) => { const distance = Math.abs(sermonBox.scrollTop - (p.offsetTop - sermonBox.offsetTop)); if (distance < minDistance) { minDistance = distance; topParaIndex = index; } }); const topParaNum = topParaIndex + 1; let targetTime = 0; for (const segment of scrollPlan) { if (topParaNum >= segment.fromP && topParaNum < segment.toP) { const paraProgress = (topParaNum - segment.fromP) / (segment.toP - segment.fromP); targetTime = segment.fromT + paraProgress * (segment.toT - segment.fromT); break; } } wasPlayingBeforeSeek = false; playFromGlobalTime(targetTime, audioPlayer); }
+  function startAutoScroll(player, seekBarEl, textBox, sermonData, paraElementsArray, timerVar) { stopAutoScroll(timerVar); const mode = sermonData.scrollMode || 'paragraph'; if (mode === 'disabled') return null; if (mode === 'paragraph') { return setInterval(() => { if (player.paused) return; snapScrollPosition(textBox, seekBarEl, sermonData, paraElementsArray); }, 120); } else if (mode === 'line') { return setInterval(() => { if (player.paused) return; snapScrollPosition(textBox, seekBarEl, sermonData, paraElementsArray); }, 100); } else if (mode === 'continuous') { return setInterval(() => { if (player.paused) return; snapScrollPosition(textBox, seekBarEl, sermonData, paraElementsArray); }, 50); } return null; }
+  function stopAutoScroll(timerVar) { if (timerVar) clearInterval(timerVar); return null; }
+  
+  // --- CORE PLAYER LOGIC ---
+  function updateParagraphsDisplay(txt, textBox, paraElementsArray) { textBox.innerHTML = ''; paraElementsArray.length = 0; if (!txt) return 0; const ps = txt.split('\n').filter(p => p.trim() !== ''); ps.forEach(p => { const d = document.createElement('p'); d.textContent = p.trim(); textBox.appendChild(d); paraElementsArray.push(d); }); return ps.length; }
+  async function initializeAudioParts(parts, targetAudioPlayer) { partDurations = []; partStartTimes = []; const tempAudio = new Audio(); tempAudio.preload = 'metadata'; for (const part of parts) { try { const url = convertToStreamableUrl(part.primary); await new Promise((resolve, reject) => { tempAudio.src = url; tempAudio.onloadedmetadata = resolve; tempAudio.onerror = () => reject(`Failed primary: ${url}`); }); partDurations.push(tempAudio.duration); } catch (err) { console.warn(err); try { const fallbackUrl = convertToStreamableUrl(part.fallback); if (!fallbackUrl) throw new Error("No fallback."); await new Promise((resolve, reject) => { tempAudio.src = fallbackUrl; tempAudio.onloadedmetadata = resolve; tempAudio.onerror = () => reject(`Failed fallback: ${fallbackUrl}`); }); partDurations.push(tempAudio.duration); } catch (fallbackError) { alert('Error loading audio from both sources.'); return false; } } } let cumulativeTime = 0; for (const duration of partDurations) { partStartTimes.push(cumulativeTime); cumulativeTime += duration; } if (parts.length > 0) { targetAudioPlayer.src = convertToStreamableUrl(parts[0].primary); } return true; }
+  function setupPlayer(player, seekBarEl, currentTimeEl, playPauseBtnEl, textBox, paraElementsArray, isPreview) { player.onplay = () => { if (!isPreview) { playIcon.classList.add('hidden'); pauseIcon.classList.remove('hidden'); } else { playPauseBtnEl.textContent = '⏸️ Pause'; } textBox.style.overflowY = 'hidden'; const sermonData = isPreview ? { scrollMode: scrollModeSelect.value, scrollSpeed: scrollSpeedRange.value } : allSermons[currentKey]; snapScrollPosition(textBox, seekBarEl, sermonData, paraElementsArray); if(isPreview) adminPreviewScrollInt = startAutoScroll(player, seekBarEl, textBox, sermonData, paraElementsArray, adminPreviewScrollInt); else autoScrollInt = startAutoScroll(player, seekBarEl, textBox, sermonData, paraElementsArray, autoScrollInt); }; player.onpause = player.onended = () => { if (!isPreview) { playIcon.classList.remove('hidden'); pauseIcon.classList.add('hidden'); } else { playPauseBtnEl.textContent = '▶️ Play'; } textBox.style.overflowY = 'auto'; if(isPreview) adminPreviewScrollInt = stopAutoScroll(adminPreviewScrollInt); else autoScrollInt = stopAutoScroll(autoScrollInt); }; player.ontimeupdate = () => { if (isSeeking || partStartTimes.length === 0) return; globalCurrentTime = (partStartTimes[currentPartIndex] || 0) + player.currentTime; seekBarEl.value = globalCurrentTime; currentTimeEl.textContent = formatTime(globalCurrentTime); }; seekBarEl.oninput = () => { isSeeking = true; wasPlayingBeforeSeek = !player.paused; if (wasPlayingBeforeSeek) player.pause(); currentTimeEl.textContent = formatTime(seekBarEl.value); }; seekBarEl.onchange = () => { isSeeking = false; playFromGlobalTime(parseInt(seekBarEl.value, 10), player); const sermonData = isPreview ? { scrollMode: scrollModeSelect.value } : allSermons[currentKey]; snapScrollPosition(textBox, seekBarEl, sermonData, paraElementsArray); }; playPauseBtnEl.onclick = () => { if (player.src) { if (player.paused) player.play().catch(console.error); else player.pause(); } else { if(isPreview) { refreshAdminPreview(); alert("Preview re-initialized. Please try again."); } } }; }
+  function playFromGlobalTime(globalTime, player) { if (partStartTimes.length === 0) return; let targetPartIndex = partStartTimes.findIndex((startTime, i) => { const nextStartTime = (i + 1 < partStartTimes.length) ? partStartTimes[i + 1] : totalAudioDuration; return globalTime >= startTime && globalTime < nextStartTime; }); if (targetPartIndex === -1) targetPartIndex = partStartTimes.length - 1; const localTime = globalTime - partStartTimes[targetPartIndex]; globalCurrentTime = globalTime; seekBar.value = globalTime; currentTimeDisplay.textContent = formatTime(globalTime); const loadAndPlayPart = () => { currentPartIndex = targetPartIndex; player.src = convertToStreamableUrl(audioParts[currentPartIndex].primary); player.addEventListener('canplay', () => { player.currentTime = localTime; if (wasPlayingBeforeSeek) player.play().catch(e => console.error(e)); }, { once: true }); player.load(); }; if (targetPartIndex !== currentPartIndex) { loadAndPlayPart(); } else { player.currentTime = localTime; if (wasPlayingBeforeSeek) player.play().catch(e => console.error(e)); } }
+
+  // --- ADMIN PANEL LOGIC ---
+  function adminLogin() { if (document.getElementById('adminPwd').value !== ADMIN_PASSWORD) { document.getElementById('loginMsg').textContent = 'Incorrect password!'; return; } loginPanel.classList.add('hidden'); adminPanel.classList.remove('hidden'); visitorCountEl.textContent = parseInt(localStorage.getItem('pageVisits') || '0').toLocaleString(); populateAdminSermonList(); loadSermonDataIntoAdminForm(currentKey); }
+  function loadSermonDataIntoAdminForm(key) { if (!key) { prepareNewSermon(); return; } currentKey = key; document.getElementById('adminSermonSelect').value = key; let loaded = allSermons[key]; if (!loaded) return; document.getElementById('adminTitle').value = loaded.title || ''; sermonInput.value = loaded.text || ''; document.getElementById('totalAudioTime').value = loaded.totTime ? secondsToHms(loaded.totTime, true) : ''; scrollModeSelect.value = loaded.scrollMode || 'paragraph'; scrollSpeedRange.value = loaded.scrollSpeed || 0; updateSpeedDisplay(); if (Array.isArray(loaded.audioParts)) { document.getElementById('primaryAudioPartsInput').value = loaded.audioParts.map(p => p.primary || '').join('\n'); document.getElementById('fallbackAudioPartsInput').value = loaded.audioParts.map(p => p.fallback || '').join('\n'); } else { document.getElementById('primaryAudioPartsInput').value = ''; document.getElementById('fallbackAudioPartsInput').value = ''; } document.getElementById('checkpointRows').innerHTML = ''; (loaded.chks || []).forEach(chk => { if (chk.time === 0 && chk.para === 1) return; addCheckpoint(secondsToHms(chk.time, true), chk.para); }); deleteBtn.style.display = 'inline-block'; refreshAdminPreview(); }
+  function populateAdminSermonList() { const adminSelect = document.getElementById('adminSermonSelect'); adminSelect.innerHTML = '<option value="">--- Select a sermon to edit ---</option>'; const sortedKeys = Object.keys(allSermons).sort((a, b) => { const numA = extractLeadingNumber(allSermons[a].title); const numB = extractLeadingNumber(allSermons[b].title); return numA - numB; }); sortedKeys.forEach(key => { let s = allSermons[key]; const opt = document.createElement('option'); opt.value = key; opt.text = s.title || 'Untitled'; adminSelect.appendChild(opt); }); }
+  function prepareNewSermon() { currentKey = ''; document.getElementById('adminSermonSelect').value = ''; document.getElementById('adminTitle').value = ''; sermonInput.value = ''; document.getElementById('primaryAudioPartsInput').value = ''; document.getElementById('fallbackAudioPartsInput').value = ''; document.getElementById('totalAudioTime').value = ''; scrollModeSelect.value = 'paragraph'; scrollSpeedRange.value = 0; updateSpeedDisplay(); document.getElementById('checkpointRows').innerHTML = ''; deleteBtn.style.display = 'none'; refreshAdminPreview(); document.getElementById('adminTitle').focus(); alert('Form cleared. You can now enter details for a new sermon.'); }
+  function addCheckpoint(time = '', para = '') { const con = document.getElementById('checkpointRows'); const row = document.createElement('div'); row.className = 'checkpoint-row'; row.innerHTML = `<input type="text" class="chk-audio" placeholder="hh:mm:ss" value="${time}" /><input type="number" class="chk-para" placeholder="Paragraph #" value="${para}" min="1" /><button type="button" title="Remove" onclick="this.parentNode.remove()">&#10006;</button>`; con.appendChild(row); }
+  function addCheckpointAtCurrentTime() { const timeInSeconds = (partStartTimes[currentPartIndex] || 0) + audioPlayerPreview.currentTime; addCheckpoint(secondsToHms(timeInSeconds, true), ''); }
+  function parseCheckpoints() { let ch = []; document.querySelectorAll('.checkpoint-row').forEach(row => { const t = hmsToSeconds(row.querySelector('.chk-audio').value); const p = Number(row.querySelector('.chk-para').value); if (!isNaN(t) && t >= 0 && !isNaN(p) && p > 0) ch.push({ time: t, para: p }); }); ch.unshift({ time: 0, para: 1 }); ch.sort((a, b) => a.time - b.time); return ch; }
+  function refreshAdminPreview() { audioPlayerPreview.pause(); initAdminPreview(); }
+  function initAdminPreview() { updateParagraphsDisplay(sermonInput.value, sermonBoxPreview, paragraphElementsPreview); const primaryUrls = document.getElementById('primaryAudioPartsInput').value.trim().split('\n').filter(Boolean); const fallbackUrls = document.getElementById('fallbackAudioPartsInput').value.trim().split('\n').filter(Boolean); const totTime = hmsToSeconds(document.getElementById('totalAudioTime').value); if (primaryUrls.length > 0 && totTime > 0) { const tempAudioParts = primaryUrls.map((pUrl, i) => ({ primary: pUrl, fallback: fallbackUrls[i] || null })); totalAudioDuration = totTime; const chks = parseCheckpoints(); scrollPlan = makeScrollPlan(paragraphElementsPreview.length, totalAudioDuration, chks); adminPreviewPanel.classList.remove('hidden'); seekBarPreview.max = totalAudioDuration; totalTimeDisplayPreview.textContent = formatTime(totalAudioDuration); initializeAudioParts(tempAudioParts, audioPlayerPreview); } else { adminPreviewPanel.classList.add('hidden'); } }
+  function makeScrollPlan(cnt, time, cp) { if (!cp || !cp.length || cp[cp.length - 1].para < cnt) cp = (cp || []).concat([{ time: time, para: cnt + 1 }]); let plan = []; for (let i = 0; i < cp.length - 1; i++) { plan.push({ fromP: cp[i].para, toP: cp[i + 1].para, fromT: cp[i].time, toT: cp[i + 1].time }); } return plan; }
+  function saveSettings() { const title = document.getElementById('adminTitle').value.trim(); const text = sermonInput.value.trim(); const totTime = hmsToSeconds(document.getElementById('totalAudioTime').value); const chks = parseCheckpoints(); const scrollMode = scrollModeSelect.value; const scrollSpeed = scrollSpeedRange.value; const primaryUrls = document.getElementById('primaryAudioPartsInput').value.trim().split('\n').filter(Boolean); const fallbackUrls = document.getElementById('fallbackAudioPartsInput').value.trim().split('\n').filter(Boolean); if (!text || primaryUrls.length === 0 || totTime <= 0) { alert('Text, Primary URLs, and Total Time are required.'); return; } const pairedAudioParts = primaryUrls.map((pUrl, i) => ({ primary: pUrl, fallback: fallbackUrls[i] || null })); let key = currentKey || 's' + Date.now(); allSermons[key] = { title, text, audioParts: pairedAudioParts, totTime, chks, scrollMode, scrollSpeed }; saveAllSermons(); closeAdmin(); showSermonsForLoadSelect(); loadSermon(key); }
+  function closeAdmin() { audioPlayerPreview.pause(); audioPlayerPreview.src = ''; stopAutoScroll(adminPreviewScrollInt); adminPanel.classList.add('hidden'); loginPanel.classList.add('hidden'); }
+  
+  // --- MAIN APPLICATION FLOW ---
+  function showSermonsForLoadSelect() { 
+      loadAllSermons(); 
+      sortedSermonKeys = Object.keys(allSermons).sort((a, b) => {
+        const numA = extractLeadingNumber(allSermons[a].title);
+        const numB = extractLeadingNumber(allSermons[b].title);
+        return numA - numB;
+      });
+      updateSermonDropdown();
+      if (sortedSermonKeys.length === 0) { 
+          loadSermon(null);
+      } else { 
+          if (currentKey && allSermons[currentKey]) { 
+              sermonSelect.value = currentKey; 
+          } else { 
+              sermonSelect.selectedIndex = 0; 
+          } 
+          loadSermon(sermonSelect.value); 
+      } 
+  }
+  function loadSermon(key) { currentKey = key; autoScrollInt = stopAutoScroll(autoScrollInt); audioPlayer.pause(); audioPlayer.src = ""; globalCurrentTime = 0; currentPartIndex = 0; seekBar.value = 0; currentTimeDisplay.textContent = "0:00"; totalTimeDisplay.textContent = "0:00"; playIcon.classList.remove('hidden'); pauseIcon.classList.add('hidden'); if (!key || !allSermons[key]) { sermonBox.innerHTML = 'Please select a sermon from the dropdown or add a new one in the admin panel.'; return; } let s = allSermons[key]; const nParas = updateParagraphsDisplay(s.text, sermonBox, paragraphElements); totalAudioDuration = s.totTime || 0; audioParts = s.audioParts || []; scrollPlan = makeScrollPlan(nParas, totalAudioDuration, s.chks || []); sermonBox.scrollTop = 0; totalTimeDisplay.textContent = formatTime(totalAudioDuration); seekBar.max = totalAudioDuration; if (audioParts.length > 0) { initializeAudioParts(audioParts, audioPlayer); } }
+
+  // --- INITIAL EVENT LISTENERS ---
+  adminBtn.onclick = () => { loginPanel.classList.remove('hidden'); document.getElementById('loginMsg').textContent = ''; const pwdInput = document.getElementById('adminPwd'); pwdInput.value = ''; pwdInput.focus(); };
+  sermonInput.oninput = () => updateParagraphsDisplay(sermonInput.value, sermonBoxPreview, paragraphElementsPreview);
+  deleteBtn.onclick = () => { if (!currentKey || !window.confirm('Delete this sermon?')) return; delete allSermons[currentKey]; saveAllSermons(); currentKey = ''; closeAdmin(); showSermonsForLoadSelect(); };
+  sermonSelect.onchange = () => { loadSermon(sermonSelect.value); };
+  backwardBtn.onclick = () => { playFromGlobalTime(Math.max(0, globalCurrentTime - 10), audioPlayer); };
+  forwardBtn.onclick = () => { playFromGlobalTime(Math.min(globalCurrentTime + 10, totalAudioDuration), audioPlayer); };
+  volumeRange.oninput = () => { audioPlayer.volume = volumeRange.value; if(audioPlayerPreview) audioPlayerPreview.volume = volumeRange.value; };
+  sermonBox.onscroll = () => { clearTimeout(manualScrollTimeout); manualScrollTimeout = setTimeout(syncAudioToScroll, 200); };
+  function updateSpeedDisplay() { speedValueDisplay.textContent = scrollSpeedRange.value; }
+  scrollSpeedRange.oninput = updateSpeedDisplay;
+  speedDownBtn.onclick = () => { scrollSpeedRange.stepDown(); updateSpeedDisplay(); };
+  speedUpBtn.onclick = () => { scrollSpeedRange.stepUp(); updateSpeedDisplay(); };
+  document.getElementById('sermonSearch').oninput = updateSermonDropdown;
+  
+  window.onload = () => {
+    const savedTheme = localStorage.getItem('sermonPlayerTheme') || 'light'; 
+    applyTheme(savedTheme);
+    incrementAndShowVisitorCount();
+    loadAllSermons(); 
+    showSermonsForLoadSelect();
+    audioPlayer.volume = volumeRange.value; 
+    
+    setupPlayer(audioPlayer, seekBar, currentTimeDisplay, playPauseBtn, sermonBox, paragraphElements, false);
+    if(playPauseBtnPreview) {
+      setupPlayer(audioPlayerPreview, seekBarPreview, currentTimeDisplayPreview, playPauseBtnPreview, sermonBoxPreview, paragraphElementsPreview, true);
+      if(audioPlayerPreview) audioPlayerPreview.volume = volumeRange.value;
+    }
+    
+    document.getElementById('adminSermonSelect').onchange = (event) => {
+        loadSermonDataIntoAdminForm(event.target.value);
+    };
+  };
+  window.onunload = () => { stopAutoScroll(autoScrollInt); stopAutoScroll(adminPreviewScrollInt); };
+</script>
+</body>
+</html>
